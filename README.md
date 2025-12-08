@@ -79,8 +79,7 @@ To run this app locally or deploy it, you need:
 ## **📂 File Structure**
 
 * openapi\_manager.py: The main Streamlit application.  
-* requirements.txt: Python dependencies.  
-* packages.txt: System dependencies for Streamlit Cloud (Node.js).
+* environment.yml: Environment dependencies.  
 
 ## **⚠️ Known Limitations**
 
