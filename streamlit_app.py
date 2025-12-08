@@ -52,7 +52,22 @@ class StreamlitLogHandler(logging.Handler):
 # --- Helper Functions ---
 
 def get_npx_path():
-    return shutil.which("npx")
+    # 1. Try standard system path lookup
+    path = shutil.which("npx")
+    if path:
+        return path
+    
+    # 2. Fallback: Look in the same directory as the Python executable
+    # (Common fix for Conda environments where bin/ isn't in PATH)
+    try:
+        python_dir = os.path.dirname(sys.executable)
+        candidate = os.path.join(python_dir, "npx")
+        if os.path.exists(candidate):
+            return candidate
+    except Exception:
+        pass
+        
+    return None
 
 def validate_env(api_key, required=True):
     if not api_key:
