@@ -1,5 +1,0 @@
-streamlit
-requests
-PyYAML
-python-dotenv
-google-genai
