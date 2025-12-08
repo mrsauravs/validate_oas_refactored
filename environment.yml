@@ -2,19 +2,19 @@ name: streamlit-refactored
 channels:
   - conda-forge
 dependencies:
-  # 1. System Tools (Conda handles these best)
+  # System Dependencies
   - git
   - nodejs=20
   - npm
   
-  # 2. Python Base
+  # Python Base
   - python=3.10
   - pip
   
-  # 3. Python Libraries (Move ALL of them to pip for speed)
+  # Python Libraries (Install via pip for speed/stability)
   - pip:
     - streamlit
     - requests
-    - PyYAML
+    - pyyaml
     - python-dotenv
     - google-genai
