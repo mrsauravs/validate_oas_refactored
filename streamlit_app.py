@@ -8,10 +8,10 @@ import logging
 import re
 import urllib.parse
 from pathlib import Path
-from google import genai
+import google.generativeai as genai # STANDARD LIBRARY
 
 # Page Config
-st.set_page_config(page_title="ReadMe Validator v2.0", layout="wide")
+st.set_page_config(page_title="ReadMe Validator v2.1", layout="wide")
 
 if 'logs' not in st.session_state: st.session_state.logs = []
 
@@ -46,12 +46,13 @@ def run_command(command_list, log_logger, cwd=None):
     except Exception as e:
         log_logger.error(f"❌ Command failed: {e}"); return 1
 
-# --- AI Logic ---
+# --- AI Logic (UPDATED FOR STANDARD LIB) ---
 def analyze_errors_with_ai(log_content, api_key, model_name):
     if not api_key: return None
     try:
-        client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(model=model_name, contents=[f"Analyze logs:\n{log_content}"])
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(model_name)
+        response = model.generate_content(f"Analyze logs:\n{log_content}")
         return response.text
     except Exception as e: return f"AI Error: {e}"
 
@@ -59,9 +60,10 @@ def apply_ai_fixes(original_path, log_content, api_key, model_name):
     if not api_key: return None
     try:
         with open(original_path, 'r') as f: content = f.read()
-        client = genai.Client(api_key=api_key)
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(model_name)
         prompt = f"Fix YAML errors. Preserve x-readme/servers/info. Return ONLY YAML.\nLogs: {log_content}\nYAML: {content}"
-        response = client.models.generate_content(model=model_name, contents=[prompt])
+        response = model.generate_content(prompt)
         match = re.search(r'```yaml\n(.*?)\n```', response.text, re.DOTALL)
         return match.group(1) if match else response.text
     except: return None
@@ -71,7 +73,6 @@ def setup_git_repo(repo_url, repo_dir, git_token, git_username, branch_name, log
     logger.info(f"🚀 Git: Branch '{branch_name}'...")
     repo_path = Path(repo_dir)
     
-    # Auth URL Construction
     if repo_url.count("https://") > 1: repo_url = re.search(r"(https://github\.com/.*)$", repo_url).group(1)
     parsed = urllib.parse.urlparse(repo_url)
     safe_user = urllib.parse.quote(git_username.strip(), safe='')
@@ -99,25 +100,22 @@ def delete_repo(repo_dir):
     if Path(repo_dir).exists(): shutil.rmtree(repo_dir); return True, "Deleted."
     return False, "Not found."
 
-# --- File Ops (COPY ALL STRATEGY) ---
+# --- File Ops (COPY TREE STRATEGY) ---
 def prepare_files(filename, paths, workspace, logger):
-    # 1. Clean Workspace
     ws_path = Path(workspace)
     if ws_path.exists(): shutil.rmtree(ws_path)
     
-    # 2. Copy the ENTIRE Main Specs folder structure
+    # Copy ENTIRE folder structure
     specs_src = paths['specs']
     if not specs_src.exists():
         logger.error(f"❌ Specs path not found: {specs_src}")
         st.stop()
         
     shutil.copytree(specs_src, ws_path)
-    # DIAGNOSTIC LOG: This confirms v2.0 is running
-    logger.info(f"📂 Copied entire specs folder to workspace.")
+    logger.info(f"📂 Copied entire specs folder to workspace.") # LOOK FOR THIS LOG
 
-    # 3. Find the selected file inside the new workspace
+    # Find file recursively
     found_files = list(ws_path.rglob(f"{filename}.yaml"))
-    
     if not found_files:
         logger.error(f"❌ Could not find '{filename}.yaml' inside the workspace.")
         st.stop()
@@ -131,14 +129,12 @@ def process_yaml_content(file_path, version, api_domain, logger):
     try:
         with open(file_path, "r") as f: data = yaml.safe_load(f)
         
-        # Inject x-readme
         if "openapi" in data:
             pos = list(data.keys()).index("openapi")
             items = list(data.items())
             items.insert(pos + 1, ("x-readme", {"explorer-enabled": False}))
             data = dict(items)
         
-        # Inject Servers
         data["info"]["version"] = version
         domain = api_domain if api_domain else "example.com"
         if "servers" not in data or not data["servers"]: data["servers"] = [{"url": f"https://{domain}", "variables": {}}]
@@ -221,7 +217,7 @@ def main():
     if sec_rel: paths["secondary"] = Path(repo_path) / sec_rel
     workspace = "./temp_workspace"
 
-    st.title("🚀 OpenAPI Validator v2.0 (Tree Mode)")
+    st.title("🚀 OpenAPI Validator v2.1 (Tree Mode)")
     
     c1, c2 = st.columns(2)
     with c1:
@@ -256,7 +252,7 @@ def main():
 
         setup_git_repo(repo_url, repo_path, git_token, git_user, branch, logger)
         
-        # --- NEW PREPARE LOGIC ---
+        # --- EXECUTION ---
         logger.info("📂 Setting up workspace...")
         target_file = prepare_files(sel_file, paths, workspace, logger)
         abs_ws = Path(workspace).resolve()
