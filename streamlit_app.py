@@ -11,7 +11,7 @@ from pathlib import Path
 from google import genai
 
 # Page Config
-st.set_page_config(page_title="ReadMe Validator", layout="wide")
+st.set_page_config(page_title="ReadMe Validator v2.0", layout="wide")
 
 if 'logs' not in st.session_state: st.session_state.logs = []
 
@@ -76,7 +76,8 @@ def setup_git_repo(repo_url, repo_dir, git_token, git_username, branch_name, log
     parsed = urllib.parse.urlparse(repo_url)
     safe_user = urllib.parse.quote(git_username.strip(), safe='')
     safe_token = urllib.parse.quote(git_token.strip(), safe='')
-    auth_url = urllib.parse.urlunparse((parsed.scheme, f"{safe_user}:{safe_token}@{parsed.netloc.split('@')[-1]}", parsed.path, parsed.params, parsed.query, parsed.fragment))
+    clean_netloc = parsed.netloc.split('@')[-1]
+    auth_url = urllib.parse.urlunparse((parsed.scheme, f"{safe_user}:{safe_token}@{clean_netloc}", parsed.path, parsed.params, parsed.query, parsed.fragment))
 
     clean_env = os.environ.copy(); clean_env["GIT_TERMINAL_PROMPT"] = "0"
     
@@ -98,28 +99,29 @@ def delete_repo(repo_dir):
     if Path(repo_dir).exists(): shutil.rmtree(repo_dir); return True, "Deleted."
     return False, "Not found."
 
-# --- File Ops (NEW: COPY ALL STRATEGY) ---
+# --- File Ops (COPY ALL STRATEGY) ---
 def prepare_files(filename, paths, workspace, logger):
     # 1. Clean Workspace
     ws_path = Path(workspace)
     if ws_path.exists(): shutil.rmtree(ws_path)
     
     # 2. Copy the ENTIRE Main Specs folder structure
-    # This preserves 'common', 'logical_metadata', etc. exactly as they are in the repo.
     specs_src = paths['specs']
+    if not specs_src.exists():
+        logger.error(f"❌ Specs path not found: {specs_src}")
+        st.stop()
+        
     shutil.copytree(specs_src, ws_path)
+    # DIAGNOSTIC LOG: This confirms v2.0 is running
     logger.info(f"📂 Copied entire specs folder to workspace.")
 
     # 3. Find the selected file inside the new workspace
-    # We look for the file recursively because we don't know if it's in root or subfolder
     found_files = list(ws_path.rglob(f"{filename}.yaml"))
     
     if not found_files:
-        logger.error(f"❌ Could not find '{filename}.yaml' inside the specs folder.")
+        logger.error(f"❌ Could not find '{filename}.yaml' inside the workspace.")
         st.stop()
     
-    # If multiple files with same name (rare), pick the one that matches the nesting
-    # For now, pick the first exact match
     target_file = found_files[0]
     logger.info(f"✅ Located target file: {target_file.relative_to(ws_path)}")
     return target_file
@@ -211,8 +213,7 @@ def main():
     st.sidebar.subheader("Paths")
     spec_rel = st.sidebar.text_input("Main Specs Path", value="specs")
     sec_rel = st.sidebar.text_input("Secondary Path (Opt)", value="")
-    # Not strictly needed with new logic, but kept for UI consistency
-    st.sidebar.text_input("Dependency Folders", value="common")
+    st.sidebar.text_input("Dependency Folders", value="common") # Kept for UI only
     domain = st.sidebar.text_input("API Domain", value="api.example.com")
 
     abs_spec = Path(repo_path) / spec_rel
@@ -220,7 +221,7 @@ def main():
     if sec_rel: paths["secondary"] = Path(repo_path) / sec_rel
     workspace = "./temp_workspace"
 
-    st.title("🚀 OpenAPI Validator")
+    st.title("🚀 OpenAPI Validator v2.0 (Tree Mode)")
     
     c1, c2 = st.columns(2)
     with c1:
@@ -260,13 +261,12 @@ def main():
         target_file = prepare_files(sel_file, paths, workspace, logger)
         abs_ws = Path(workspace).resolve()
         
-        # Calculate relative path for CLI commands
+        # Relative path for CLI (e.g., logical_metadata/field_value_edited.yaml)
         rel_target = target_file.relative_to(abs_ws)
 
         if has_key: check_and_create_version(version, readme_key, base_url, logger, bool(b_up))
         
         edited = process_yaml_content(target_file, version, domain, logger)
-        # Update path to point to the edited version
         final_target = edited
         rel_final_target = final_target.relative_to(abs_ws)
         
@@ -309,7 +309,6 @@ def main():
     
     if st.session_state.logs and st.button("🗑️ Clear"): st.session_state.logs = []
     
-    # AI Fix Logic
     if st.session_state.logs and gemini_key:
         c1, c2 = st.columns(2)
         if c1.button("🧐 Analyze"): 
