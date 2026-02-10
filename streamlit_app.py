@@ -15,7 +15,7 @@ from google import genai
 # Page Config
 st.set_page_config(
     page_title="SudoDocs OAS Validator",
-    page_icon="📘",
+    page_icon="https://sudodocs.com/favicon.ico",
     layout="wide"
 )
 
