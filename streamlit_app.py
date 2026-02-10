@@ -14,7 +14,7 @@ from google import genai
 
 # Page Config
 st.set_page_config(
-    page_title="Refactored OpenAPI Validator",
+    page_title="SudoDocs OAS Validator",
     page_icon="📘",
     layout="wide"
 )
@@ -299,7 +299,7 @@ def main():
     if secondary_rel_path: paths["secondary"] = Path(repo_path) / secondary_rel_path
     workspace_dir = "./temp_workspace"
 
-    st.title("🚀 Refactored OpenAPI Validator")
+    st.title("🚀 SudoDocs OAS Validator")
 
     col1, col2 = st.columns(2)
     with col1:
